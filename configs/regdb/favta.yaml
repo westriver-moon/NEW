@@ -1,0 +1,27 @@
+experiment:
+  variant: favta
+  seed: 0
+dataset:
+  name: regdb
+  root: null
+  caption_index: null
+  regdb_trial: 1
+  regdb_direction: visible_to_thermal
+model:
+  image_size: [288, 144]
+  tokenizer:
+    branches:
+      - patch_size: [16, 16]
+        stride: [12, 12]
+visual_enhancement:
+  enabled: false
+  modalities: []
+loss:
+  favta_enabled: true
+  favta_weight: 1.0
+train:
+  lr_text: 1.0e-5
+evaluation:
+  protocol: regdb
+  gallery_trials: 1
+

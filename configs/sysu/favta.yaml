@@ -1,0 +1,25 @@
+experiment:
+  variant: favta
+  seed: 0
+dataset:
+  name: sysu
+  root: null
+  caption_index: null
+model:
+  image_size: [288, 144]
+  tokenizer:
+    branches:
+      - patch_size: [16, 16]
+        stride: [12, 12]
+visual_enhancement:
+  enabled: false
+  modalities: []
+loss:
+  favta_enabled: true
+  favta_weight: 1.0
+train:
+  lr_text: 1.0e-5
+evaluation:
+  protocol: all
+  gallery_trials: 10
+

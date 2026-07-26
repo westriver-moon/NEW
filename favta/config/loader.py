@@ -46,6 +46,15 @@ DEFAULTS: Dict[str, Any] = {
         "modalities": [],
         "exact_size": True,
     },
+    "text_augmentation": {
+        "enabled": False,
+        "plugin": "qwen_paraphrases",
+        "index": None,
+        "probability": 1.0,
+        "strict": True,
+        "paraphrases_per_caption": 4,
+        "strip_prefixes": ["datasets/sysu", "datasets/regdb"],
+    },
     "loss": {
         "id_weight": 1.0,
         "wrt_weight": 1.0,
@@ -144,6 +153,7 @@ def load_config(
     config["dataset"]["sr_root"] = _expand(config["dataset"].get("sr_root"))
     config["dataset"]["caption_index"] = _expand(config["dataset"].get("caption_index"))
     config["dataset"]["vocab_path"] = _expand(config["dataset"].get("vocab_path"))
+    config["text_augmentation"]["index"] = _expand(config["text_augmentation"].get("index"))
     config["train"]["output_dir"] = _expand(config["train"].get("output_dir"))
     config["train"]["resume"] = _expand(config["train"].get("resume"))
     config["model"]["vision_pretrained"] = _expand(config["model"].get("vision_pretrained"))
@@ -205,3 +215,14 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ConfigError("gallery_trials must be positive")
     if int(config["train"]["batch_size"]) % int(config["train"]["instances_per_identity"]):
         raise ConfigError("batch_size must be divisible by instances_per_identity")
+    text_augmentation = config.get("text_augmentation", {})
+    if text_augmentation.get("enabled"):
+        if not isinstance(text_augmentation.get("plugin"), str) or not text_augmentation["plugin"].strip():
+            raise ConfigError("text augmentation requires a plugin name or module:object reference")
+        if not text_augmentation.get("index"):
+            raise ConfigError("text augmentation requires text_augmentation.index")
+        probability = float(text_augmentation.get("probability", 1.0))
+        if not 0.0 <= probability <= 1.0:
+            raise ConfigError("text_augmentation.probability must be in [0, 1]")
+        if int(text_augmentation.get("paraphrases_per_caption", 4)) < 1:
+            raise ConfigError("text_augmentation.paraphrases_per_caption must be positive")

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Any, Dict, Tuple
 
+from favta.plugins import build_caption_augmentation_plugin
+
 from .datasets import CrossModalDataset, EvaluationImageDataset, VisualPairDataset
 from .protocols import (
     discover_regdb_evaluation,
@@ -30,12 +32,16 @@ def build_training_set(config: Dict[str, Any]) -> CrossModalDataset:
         config["model"]["text_vocab_size"],
     )
     require_sr_size = bool(config["visual_enhancement"]["enabled"] and config["visual_enhancement"]["exact_size"])
+    augmentation_config = dict(config.get("text_augmentation", {}))
+    augmentation_config.setdefault("seed", int(config["experiment"]["seed"]))
+    caption_augmentation = build_caption_augmentation_plugin(augmentation_config)
     return CrossModalDataset(
         rgb,
         ir,
         ImageTransform(config["model"]["image_size"], training=True, require_input_size=require_sr_size),
         CaptionIndex(dataset["caption_index"]),
         tokenizer,
+        caption_augmentation=caption_augmentation,
         sr_root=dataset.get("sr_root"),
         use_sr=config["visual_enhancement"]["enabled"],
     )

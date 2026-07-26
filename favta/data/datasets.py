@@ -20,12 +20,14 @@ class CrossModalDataset(Dataset):
         transform,
         caption_index: CaptionIndex,
         tokenizer: CaptionTokenizer,
+        caption_augmentation=None,
         sr_root: Optional[str] = None,
         use_sr: bool = False,
     ):
         self.transform = transform
         self.caption_index = caption_index
         self.tokenizer = tokenizer
+        self.caption_augmentation = caption_augmentation
         self.sr_root = Path(sr_root) if sr_root else None
         self.use_sr = bool(use_sr)
         rgb_by_pid: Dict[int, List[ImageRecord]] = defaultdict(list)
@@ -49,6 +51,12 @@ class CrossModalDataset(Dataset):
                 pid = self.pid_map[original_pid]
                 self.records.append((rgb_items[offset % len(rgb_items)], ir_items[offset % len(ir_items)], pid))
                 self.pid_to_indices[pid].append(index)
+        if self.caption_augmentation is not None:
+            relative_paths = {
+                record.relative_path or Path(record.path.name)
+                for record in rgb_records
+            }
+            self.caption_augmentation.validate_keys(relative_paths)
 
     @property
     def num_classes(self) -> int:
@@ -56,6 +64,10 @@ class CrossModalDataset(Dataset):
 
     def __len__(self) -> int:
         return len(self.records)
+
+    def set_epoch(self, epoch: int) -> None:
+        if self.caption_augmentation is not None:
+            self.caption_augmentation.set_epoch(epoch)
 
     def _resolved(self, record: ImageRecord) -> Path:
         if not self.use_sr:
@@ -74,7 +86,10 @@ class CrossModalDataset(Dataset):
         with Image.open(self._resolved(ir_record)) as image:
             ir = self.transform(image)
         relative = rgb_record.relative_path or Path(rgb_record.path.name)
-        text = self.tokenizer(self.caption_index.caption_for(relative))
+        caption = self.caption_index.caption_for(relative)
+        if self.caption_augmentation is not None:
+            caption = self.caption_augmentation.select_caption(relative, caption, sample_index=index)
+        text = self.tokenizer(caption)
         return {"rgb": rgb, "ir": ir, "text": text, "pid": torch.tensor(pid, dtype=torch.long)}
 
 

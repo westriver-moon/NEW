@@ -18,6 +18,7 @@ def base_parser(description: str) -> argparse.ArgumentParser:
     parser.add_argument("--data-root")
     parser.add_argument("--sr-root")
     parser.add_argument("--caption-index")
+    parser.add_argument("--caption-augmentation-index")
     parser.add_argument("--vocab-path")
     parser.add_argument("--output-dir")
     parser.add_argument("--set", action="append", default=[], dest="overrides")
@@ -30,6 +31,7 @@ def resolved_config(args):
         "dataset.root": args.data_root,
         "dataset.sr_root": args.sr_root,
         "dataset.caption_index": args.caption_index,
+        "text_augmentation.index": args.caption_augmentation_index,
         "dataset.vocab_path": args.vocab_path,
         "train.output_dir": args.output_dir,
     }

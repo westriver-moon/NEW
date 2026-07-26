@@ -17,6 +17,21 @@ dependencies = [
 
 [project.optional-dependencies]
 test = ["pytest>=7"]
+qwen-caption = [
+  "transformers==4.53.3",
+  "accelerate==1.8.1",
+  "datasets==3.6.0",
+  "huggingface-hub==0.33.2",
+  "safetensors==0.5.3",
+  "zstandard==0.25.0",
+]
+
+[project.scripts]
+favta-qwen-caption-augment = "favta.plugins.qwen_caption.generate:main"
+favta-qwen-caption-merge = "favta.plugins.qwen_caption.merge:main"
+
+[project.entry-points."favta.caption_augmentation"]
+qwen_paraphrases = "favta.plugins.qwen_caption:QwenParaphrasePlugin"
 
 [tool.setuptools.packages.find]
 include = ["favta*"]
@@ -24,4 +39,3 @@ include = ["favta*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-

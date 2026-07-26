@@ -34,6 +34,7 @@ def main(argv=None):
         payload = load_checkpoint(train["resume"], model, optimizer, scheduler, scaler)
         start = int(payload["epoch"]) + 1
     for epoch in range(start, int(train["epochs"])):
+        dataset.set_epoch(epoch)
         sampler.set_epoch(epoch)
         scheduler.step(epoch)
         losses = train_one_epoch(
@@ -51,4 +52,3 @@ def main(argv=None):
 
 if __name__ == "__main__":
     main()
-

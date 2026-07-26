@@ -14,12 +14,14 @@ Build a fresh, independent FAVTA repository from behavior-level requirements. Th
 - RGB, IR, Text, and Fusion features with all six unordered pairs aligned in both directions.
 - Two-stage training: visual pretraining followed by a frozen-vision four-view stage.
 - AMP, gradient clipping, warmup-cosine scheduling, and complete strict checkpoint resume.
+- An opt-in caption-augmentation plugin boundary; the Qwen plugin remains disabled unless explicitly configured.
 
 ## Excluded behavior
 
 - Any third-dataset adapter or protocol.
 - Test-identity injection and any test-pool training path.
-- Region-conditioned, cyclic-interaction, language-augmentation, metric-boost, reranking, and historical orchestration code.
+- Region-conditioned, cyclic-interaction, metric-boost, reranking, and historical orchestration code.
+- Language-augmentation logic embedded in the core dataset or model; optional plugins own generation and selection.
 - Compatibility mappings for legacy checkpoint keys.
 - Bundled vocabularies, data, generated SR content, or weights.
 

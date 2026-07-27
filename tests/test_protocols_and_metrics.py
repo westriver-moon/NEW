@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from favta.cli import evaluate
 from favta.data.protocols import discover_regdb_evaluation, discover_sysu_gallery
@@ -65,9 +66,13 @@ def test_sysu_multi_shot_samples_ten_images_per_identity_and_camera(tmp_path):
     assert {camera: sum(record.camera == camera for record in first) for camera in (1, 2)} == {1: 10, 2: 10}
 
 
-def test_regdb_checkpoint_mapping_loads_one_model_per_trial(monkeypatch):
+def test_regdb_checkpoint_mapping_loads_one_model_per_trial(monkeypatch, tmp_path, capsys):
     loaded = []
     evaluated = []
+    first = tmp_path / "trial-1.pth"
+    second = tmp_path / "trial-2.pth"
+    first.write_bytes(b"trial-one")
+    second.write_bytes(b"trial-two")
 
     def fake_loaded_model(config, checkpoint, requested_classes, device):
         loaded.append((config["dataset"]["regdb_trial"], checkpoint))
@@ -88,11 +93,38 @@ def test_regdb_checkpoint_mapping_loads_one_model_per_trial(monkeypatch):
             "/external/regdb",
             "--device",
             "cpu",
+            "--allow-partial-regdb",
             "--regdb-checkpoint",
-            "1=trial-1.pth",
+            "1=%s" % first,
             "--regdb-checkpoint",
-            "2=trial-2.pth",
+            "2=%s" % second,
         ]
     )
-    assert loaded == [(1, "trial-1.pth"), (2, "trial-2.pth")]
-    assert evaluated == [(1, 1, "trial-1.pth"), (2, 2, "trial-2.pth")]
+    assert loaded == [(1, str(first)), (2, str(second))]
+    assert evaluated == [(1, 1, str(first)), (2, 2, str(second))]
+    output = capsys.readouterr().out
+    assert "evaluation_mode=image-only" in output
+    assert "partial average over 2 trials mode=image-only" in output
+
+
+def test_regdb_benchmark_rejects_partial_or_identical_checkpoints(monkeypatch, tmp_path):
+    config = Path(__file__).resolve().parents[1] / "configs" / "regdb" / "baseline.yaml"
+    first = tmp_path / "trial-1.pth"
+    second = tmp_path / "trial-2.pth"
+    first.write_bytes(b"same")
+    second.write_bytes(b"same")
+    with pytest.raises(SystemExit):
+        evaluate.main(
+            [
+                "--config",
+                str(config),
+                "--data-root",
+                "/external/regdb",
+                "--device",
+                "cpu",
+                "--regdb-checkpoint",
+                "1=%s" % first,
+            ]
+        )
+    with pytest.raises(ValueError, match="byte-identical"):
+        evaluate._validate_regdb_checkpoint_files({1: str(first), 2: str(second)})

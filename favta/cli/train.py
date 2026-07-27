@@ -4,7 +4,14 @@ import torch
 
 from favta.cli.common import base_parser, output_checkpoint, resolved_config, seed_everything, training_loader
 from favta.data import build_training_set
-from favta.engine import WarmupCosineScheduler, build_optimizer, load_checkpoint, save_checkpoint, train_one_epoch
+from favta.engine import (
+    WarmupCosineScheduler,
+    build_checkpoint_provenance,
+    build_optimizer,
+    load_checkpoint,
+    save_checkpoint,
+    train_one_epoch,
+)
 from favta.losses import FAVTALoss
 from favta.models import build_model
 
@@ -29,6 +36,7 @@ def main(argv=None):
         float(train["min_lr_factor"]),
     )
     scaler = torch.cuda.amp.GradScaler(enabled=bool(train["amp"]) and device.type == "cuda")
+    provenance = build_checkpoint_provenance(config)
     start = 0
     if train.get("resume"):
         payload = load_checkpoint(train["resume"], model, optimizer, scheduler, scaler)
@@ -46,7 +54,15 @@ def main(argv=None):
             device,
             float(train["gradient_clip_norm"]),
         )
-        save_checkpoint(output_checkpoint(config), epoch, model, optimizer, scheduler, scaler, {"variant": config["experiment"]["variant"]})
+        save_checkpoint(
+            output_checkpoint(config),
+            epoch,
+            model,
+            optimizer,
+            scheduler,
+            scaler,
+            {"variant": config["experiment"]["variant"], "provenance": provenance},
+        )
         print("epoch=%d %s" % (epoch, " ".join("%s=%.6f" % item for item in sorted(losses.items()))), flush=True)
 
 

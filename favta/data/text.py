@@ -32,6 +32,8 @@ class CaptionTokenizer:
     def __init__(self, vocab_path: Optional[str], length: int = 77, vocab_size: int = 49408):
         self.length = int(length)
         self.vocab_size = int(vocab_size)
+        if self.length < 2:
+            raise ValueError("caption token length must be at least 2 for <start> and <end>")
         self.vocab: Dict[str, int] = {"<pad>": 0, "<start>": 1, "<end>": 2, "<unk>": 3}
         if vocab_path:
             with Path(vocab_path).open("r", encoding="utf-8") as handle:
@@ -48,10 +50,11 @@ class CaptionTokenizer:
         return float(known) / float(len(tokens))
 
     def __call__(self, caption: str) -> torch.Tensor:
-        ids = [self.vocab["<start>"]]
-        ids.extend(self.vocab.get(token.lower(), self.vocab["<unk>"]) for token in caption.split())
-        ids.append(self.vocab["<end>"])
-        ids = ids[: self.length]
+        words = [
+            self.vocab.get(token.lower(), self.vocab["<unk>"])
+            for token in caption.split()[: self.length - 2]
+        ]
+        ids = [self.vocab["<start>"]] + words + [self.vocab["<end>"]]
         ids.extend([0] * (self.length - len(ids)))
         return torch.tensor(ids, dtype=torch.long)
 

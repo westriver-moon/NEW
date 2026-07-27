@@ -49,6 +49,24 @@ def build_training_set(config: Dict[str, Any]) -> CrossModalDataset:
     augmentation_config = dict(config.get("text_augmentation", {}))
     augmentation_config.setdefault("seed", int(config["experiment"]["seed"]))
     caption_augmentation = build_caption_augmentation_plugin(augmentation_config)
+    if caption_augmentation is not None:
+        caption_pairs = [
+            (
+                record.relative_path or record.path.name,
+                caption_index.caption_for(record.relative_path or record.path.name),
+            )
+            for record in rgb
+        ]
+        caption_augmentation.validate_captions(caption_pairs)
+        augmentation_coverage = caption_augmentation.validate_tokenization(
+            caption_pairs, tokenizer, minimum_coverage
+        )
+        if augmentation_coverage is not None:
+            print(
+                "caption_vocab_coverage original=%.3f augmented_overall=%.3f augmented_min=%.3f"
+                % (coverage, augmentation_coverage["overall"], augmentation_coverage["minimum"]),
+                flush=True,
+            )
     return CrossModalDataset(
         rgb,
         ir,

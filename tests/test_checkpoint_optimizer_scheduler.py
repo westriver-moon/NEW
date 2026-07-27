@@ -2,10 +2,18 @@ import copy
 import random
 
 import numpy as np
+import pytest
 import torch
 
 from favta.config.loader import DEFAULTS
-from favta.engine import WarmupCosineScheduler, build_optimizer, load_checkpoint, save_checkpoint
+from favta.engine import (
+    WarmupCosineScheduler,
+    build_checkpoint_provenance,
+    build_optimizer,
+    load_checkpoint,
+    save_checkpoint,
+    validate_checkpoint_provenance,
+)
 
 
 class TinyGroupedModel(torch.nn.Module):
@@ -31,6 +39,18 @@ def test_optimizer_groups_and_cosine_is_monotonic_after_warmup():
     assert all(left >= right for left, right in zip(values, values[1:]))
     assert values[0] == 1.0
     assert values[-1] == 0.01
+
+
+def test_stage_specific_learning_rate_override_only_changes_requested_group():
+    config = copy.deepcopy(DEFAULTS)
+    model = TinyGroupedModel()
+    optimizer = build_optimizer(config, model, {"vision": 9e-4})
+    named = {group["group_name"]: group["lr"] for group in optimizer.param_groups}
+    assert named == {
+        "vision": 9e-4,
+        "text": config["train"]["lr_text"],
+        "other": config["train"]["lr_other"],
+    }
 
 
 def test_checkpoint_strictly_restores_all_training_state(tmp_path):
@@ -62,3 +82,25 @@ def test_checkpoint_strictly_restores_all_training_state(tmp_path):
     assert torch.equal(actual_rng[2], expected_rng[2])
     for name, value in model.state_dict().items():
         assert torch.equal(value, expected_parameters[name])
+
+
+def test_checkpoint_provenance_validates_trial_direction_and_model_config():
+    config = copy.deepcopy(DEFAULTS)
+    config["dataset"].update(
+        {"name": "regdb", "regdb_trial": 3, "regdb_direction": "visible_to_thermal"}
+    )
+    payload = {"extra": {"provenance": build_checkpoint_provenance(config)}}
+    validate_checkpoint_provenance(payload, config, "trial-3.pth")
+
+    wrong_trial = copy.deepcopy(config)
+    wrong_trial["dataset"]["regdb_trial"] = 4
+    with pytest.raises(ValueError, match="regdb_trial"):
+        validate_checkpoint_provenance(payload, wrong_trial, "trial-3.pth")
+
+    wrong_fusion = copy.deepcopy(config)
+    wrong_fusion["model"]["fusion_weight"] = 0.75
+    with pytest.raises(ValueError, match="model configuration"):
+        validate_checkpoint_provenance(payload, wrong_fusion, "trial-3.pth")
+
+    with pytest.raises(ValueError, match="no experiment provenance"):
+        validate_checkpoint_provenance({"extra": {}}, config, "legacy.pth")

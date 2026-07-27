@@ -106,6 +106,33 @@ class QwenParaphrasePlugin(CaptionAugmentationPlugin):
                 % (len(mismatched), mismatched[0])
             )
 
+    def validate_tokenization(self, items, tokenizer, minimum_coverage: float):
+        augmented = []
+        per_caption = []
+        collapsed = []
+        for key, _ in items:
+            paraphrases, _, _ = self._entry_for(key)
+            if not paraphrases:
+                continue
+            augmented.extend(paraphrases)
+            per_caption.extend(tokenizer.coverage([caption]) for caption in paraphrases)
+            token_sequences = {tuple(tokenizer(caption).tolist()) for caption in paraphrases}
+            if len(token_sequences) != len(paraphrases):
+                collapsed.append(str(key))
+        overall = tokenizer.coverage(augmented)
+        minimum = min(per_caption) if per_caption else 1.0
+        if overall < minimum_coverage or minimum < minimum_coverage:
+            raise ValueError(
+                "Qwen caption vocabulary coverage is too low: overall=%.3f minimum=%.3f "
+                "required=%.3f" % (overall, minimum, minimum_coverage)
+            )
+        if collapsed:
+            raise ValueError(
+                "Qwen paraphrases collapse to duplicate token ID sequences for %d paths; first=%s"
+                % (len(collapsed), collapsed[0])
+            )
+        return {"overall": overall, "minimum": minimum}
+
     def set_epoch(self, epoch: int) -> None:
         self.epoch = int(epoch)
 

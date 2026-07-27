@@ -48,9 +48,18 @@ visual-pretraining loss. Stage A and Stage B must use the same variant config:
 `full` use the two-branch 512x256 encoder. Visual checkpoints are loaded
 strictly; checkpoints are not adapted across these architectures.
 
-Evaluation is image-only by default. To evaluate IR/Text fusion, explicitly add
+Stage B keeps the visual encoder trainable by default so that its image-only
+retrieval features can respond to ID/WRT/FAVTA training. Its default visual
+learning rate is `3e-5`, while Stage A retains `stage_a.lr_vision=3e-4`.
+Freezing Stage B with `model.freeze_vision=true` is an advanced option whose
+learned text/fusion branches do not change image-only retrieval features.
+
+Evaluation is image-only by default and prints `evaluation_mode=image-only`.
+To evaluate IR/Text fusion, explicitly add
 `--set evaluation.use_text_fusion=true` together with `--caption-index` and
-`--vocab-path`. The evaluation caption index must cover every IR/thermal test
+`--vocab-path`; this prints `evaluation_mode=IR+Text fusion`. The latter uses
+captions derived from thermal test images and is not directly comparable with
+standard image-only VI-ReID results. The evaluation caption index must cover every IR/thermal test
 image; an RGB-only caption file is intentionally rejected during evaluation
 preflight. Four-view training always requires a vocabulary and rejects caption
 sets whose known-token coverage is below `dataset.min_vocab_coverage`.
@@ -63,8 +72,21 @@ splits:
 python -m favta.cli.evaluate --config configs/regdb/full.yaml \
   --data-root /path/to/regdb --sr-root /path/to/regdb-sr \
   --regdb-checkpoint 1=/path/to/trial-1.pth \
-  --regdb-checkpoint 2=/path/to/trial-2.pth
+  --regdb-checkpoint 2=/path/to/trial-2.pth \
+  --regdb-checkpoint 3=/path/to/trial-3.pth \
+  --regdb-checkpoint 4=/path/to/trial-4.pth \
+  --regdb-checkpoint 5=/path/to/trial-5.pth \
+  --regdb-checkpoint 6=/path/to/trial-6.pth \
+  --regdb-checkpoint 7=/path/to/trial-7.pth \
+  --regdb-checkpoint 8=/path/to/trial-8.pth \
+  --regdb-checkpoint 9=/path/to/trial-9.pth \
+  --regdb-checkpoint 10=/path/to/trial-10.pth
 ```
+
+Benchmark mode requires all ten mappings, rejects byte-identical checkpoint
+copies, and verifies embedded dataset, trial, direction, variant, model,
+fusion, loss, and caption/vocabulary provenance. Exploratory subsets require
+`--allow-partial-regdb` and are labelled `partial average over N trials`.
 
 SYSU single-shot and multi-shot gallery construction follows the official
 one/ten-images-per-identity-per-RGB-camera protocol and averages the configured
@@ -111,8 +133,12 @@ Enable the training-validated four-caption schedule with command-line overrides:
 ```bash
 python -m favta.cli.train --config configs/sysu/full.yaml \
   --data-root /home/cgv841/datasets/SYSU-MM01 \
+  --sr-root /home/cgv841/datasets/SYSU-MM01-SR \
   --caption-index /path/to/caption_dict_Blip_RGB.json \
   --caption-augmentation-index /home/cgv841/datasets/SYSU-MM01/Text/Blip_RGB_Qwen3_14B_AWQ/caption_qwen3_14b_awq_4x.json \
+  --vocab-path /path/to/vocab.txt \
+  --output-dir /path/to/output \
+  --set model.vision_pretrained=/path/to/visual_encoder.pth \
   --set text_augmentation.enabled=true \
   --set text_augmentation.plugin=qwen_paraphrases \
   --set text_augmentation.probability=1.0 \
@@ -129,3 +155,8 @@ probability `probability / 4`, while the original caption has probability
 the `favta.caption_augmentation` Python entry-point group. Selection is a
 stable hash of seed, epoch, sample index, and RGB image path, so resumed runs
 make the same choice for the same training sample.
+
+Before training, the Qwen plugin reports original-caption coverage, aggregate
+Qwen coverage, and the minimum per-paraphrase coverage. It rejects low-coverage
+paraphrases and also rejects four distinct strings that collapse to duplicate
+token-ID sequences after unknown-token mapping or truncation.

@@ -19,9 +19,9 @@ def main(argv=None):
     dataset = build_visual_training_set(config)
     loader, sampler = training_loader(dataset, config)
     model = build_visual_pretrain_model(config, dataset.num_classes).to(device)
-    optimizer = build_optimizer(config, model)
-    train = config["train"]
     stage = config["stage_a"]
+    optimizer = build_optimizer(config, model, {"vision": float(stage["lr_vision"])})
+    train = config["train"]
     scheduler = WarmupCosineScheduler(
         optimizer,
         stage["epochs"],

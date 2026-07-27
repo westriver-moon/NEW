@@ -179,6 +179,30 @@ def test_tokenizer_normalizes_vocab_case_and_reports_coverage(tmp_path):
     assert tokenizer.coverage(["person RED", "coat missing"]) == 0.75
 
 
+def test_tokenizer_preserves_end_token_when_caption_is_truncated(tmp_path):
+    vocab = tmp_path / "vocab.txt"
+    vocab.write_text("one\ntwo\nthree\nfour\n", encoding="utf-8")
+    tokenizer = CaptionTokenizer(str(vocab), length=4, vocab_size=32)
+    assert tokenizer("one two three four").tolist() == [1, 4, 5, 2]
+    with pytest.raises(ValueError, match="at least 2"):
+        CaptionTokenizer(str(vocab), length=1, vocab_size=32)
+
+
+def test_qwen_plugin_rejects_low_coverage_and_token_id_collapse(tmp_path):
+    path = tmp_path / "augmented.json"
+    write_augmented_index(path)
+    plugin = QwenParaphrasePlugin(plugin_config(path))
+    vocab = tmp_path / "vocab.txt"
+    vocab.write_text("first\n", encoding="utf-8")
+    tokenizer = CaptionTokenizer(str(vocab), length=8, vocab_size=32)
+    items = [(Path("cam4/0001/frame.jpg"), "A person in a red coat.")]
+    with pytest.raises(ValueError, match="coverage is too low"):
+        plugin.validate_tokenization(items, tokenizer, 0.5)
+
+    with pytest.raises(ValueError, match="duplicate token ID"):
+        plugin.validate_tokenization(items, tokenizer, 0.0)
+
+
 def test_merge_normalizes_flat_input_and_uses_manifest_word_limit(monkeypatch, tmp_path):
     source = tmp_path / "captions.json"
     source.write_text(json.dumps({"a.jpg": "source caption"}), encoding="utf-8")

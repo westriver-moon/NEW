@@ -22,6 +22,9 @@ class CaptionAugmentationPlugin(ABC):
     def validate_captions(self, items: Iterable[Tuple[Any, str]]) -> None:
         self.validate_keys(key for key, _ in items)
 
+    def validate_tokenization(self, items, tokenizer, minimum_coverage: float):
+        return None
+
     @abstractmethod
     def select_caption(self, key: Any, original: str, sample_index: Optional[int] = None) -> str:
         raise NotImplementedError

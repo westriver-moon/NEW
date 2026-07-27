@@ -27,6 +27,7 @@ def test_eight_configs_map_exactly(monkeypatch, tmp_path, dataset, variant, enha
     assert len(config["model"]["tokenizer"]["branches"]) == branches
     assert config["loss"]["favta_weight"] == weight
     assert config["stage_a"] == {
+        "lr_vision": 3.0e-4,
         "epochs": 24,
         "gray_epochs": 6,
         "transition_epochs": 4,
@@ -38,6 +39,8 @@ def test_eight_configs_map_exactly(monkeypatch, tmp_path, dataset, variant, enha
         "msct_weight": 0.25,
         "amp_init_scale": 2048.0,
     }
+    assert config["model"]["freeze_vision"] is False
+    assert config["train"]["lr_vision"] == 3.0e-5
 
 
 def test_precedence_is_default_then_yaml_then_set_then_explicit(monkeypatch, tmp_path):
@@ -73,4 +76,12 @@ def test_stage_a_rejects_legacy_or_unknown_loss_fields():
         load_config(
             str(ROOT / "configs" / "sysu" / "baseline.yaml"),
             ["stage_a.old_center_weight=0.5"],
+        )
+
+
+def test_text_length_must_preserve_boundary_tokens():
+    with pytest.raises(ConfigError, match="text_length"):
+        load_config(
+            str(ROOT / "configs" / "sysu" / "baseline.yaml"),
+            ["model.text_length=1"],
         )

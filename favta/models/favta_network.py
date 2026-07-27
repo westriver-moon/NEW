@@ -118,5 +118,5 @@ def build_model(config: Mapping[str, Any], num_classes: int) -> FAVTANetwork:
             _component_state(model_config["text_pretrained"], "text_encoder"),
             strict=True,
         )
-    model.freeze_vision(bool(model_config.get("freeze_vision", True)))
+    model.freeze_vision(bool(model_config.get("freeze_vision", False)))
     return model

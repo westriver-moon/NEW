@@ -6,6 +6,7 @@ dataset:
   root: null
   caption_index: null
 model:
+  freeze_vision: false
   image_size: [288, 144]
   tokenizer:
     branches:
@@ -18,6 +19,7 @@ loss:
   favta_enabled: true
   favta_weight: 1.0
 train:
+  lr_vision: 3.0e-5
   lr_text: 1.0e-5
 evaluation:
   protocol: all

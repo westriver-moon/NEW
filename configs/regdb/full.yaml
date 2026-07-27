@@ -9,6 +9,7 @@ dataset:
   regdb_trial: 1
   regdb_direction: visible_to_thermal
 model:
+  freeze_vision: false
   image_size: [512, 256]
   tokenizer:
     branches:
@@ -23,6 +24,7 @@ loss:
   favta_enabled: true
   favta_weight: 1.25
 train:
+  lr_vision: 3.0e-5
   lr_text: 7.5e-6
 evaluation:
   protocol: regdb

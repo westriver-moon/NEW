@@ -7,6 +7,7 @@ dataset:
   sr_root: ${FAVTA_SR_ROOT}
   caption_index: null
 model:
+  freeze_vision: false
   image_size: [512, 256]
   tokenizer:
     branches:
@@ -21,6 +22,7 @@ loss:
   favta_enabled: false
   favta_weight: 1.0
 train:
+  lr_vision: 3.0e-5
   lr_text: 1.0e-5
 evaluation:
   protocol: all

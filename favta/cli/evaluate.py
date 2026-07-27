@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -8,7 +9,13 @@ from torch.utils.data import DataLoader
 
 from favta.cli.common import base_parser, resolved_config, seed_everything
 from favta.data import build_evaluation_sets
-from favta.engine import evaluate_features, extract_image_features, load_checkpoint
+from favta.engine import (
+    evaluate_features,
+    extract_image_features,
+    load_checkpoint,
+    sha256_file,
+    validate_checkpoint_provenance,
+)
 from favta.models import build_model
 
 
@@ -38,7 +45,8 @@ def _num_classes(checkpoint, requested=None):
 
 def _loaded_model(config, checkpoint, requested_classes, device):
     model = build_model(config, _num_classes(checkpoint, requested_classes)).to(device)
-    load_checkpoint(checkpoint, model, restore_rng=False)
+    payload = load_checkpoint(checkpoint, model, restore_rng=False)
+    validate_checkpoint_provenance(payload, config, checkpoint)
     return model
 
 
@@ -49,14 +57,32 @@ def _regdb_checkpoint_map(values):
             raise ValueError("RegDB checkpoints must use TRIAL=PATH")
         raw_trial, path = expression.split("=", 1)
         trial = int(raw_trial)
-        if trial < 1 or not path:
-            raise ValueError("RegDB checkpoints must use a positive TRIAL and a non-empty PATH")
+        if trial not in range(1, 11) or not path:
+            raise ValueError("RegDB checkpoints must use TRIAL 1-10 and a non-empty PATH")
         if trial in checkpoints:
             raise ValueError("duplicate RegDB checkpoint for trial %d" % trial)
         if path in checkpoints.values():
             raise ValueError("each RegDB trial must use a distinct checkpoint path")
         checkpoints[trial] = path
     return checkpoints
+
+
+def _validate_regdb_checkpoint_files(checkpoints):
+    hashes = {}
+    for trial, checkpoint in sorted(checkpoints.items()):
+        if not Path(checkpoint).is_file():
+            raise ValueError("RegDB checkpoint does not exist for trial %d: %s" % (trial, checkpoint))
+        digest = sha256_file(checkpoint)
+        if digest in hashes:
+            raise ValueError(
+                "RegDB trials %d and %d use byte-identical checkpoints"
+                % (hashes[digest], trial)
+            )
+        hashes[digest] = trial
+
+
+def _evaluation_mode(config):
+    return "IR+Text fusion" if config["evaluation"].get("use_text_fusion", False) else "image-only"
 
 
 def main(argv=None):
@@ -69,6 +95,11 @@ def main(argv=None):
         default=[],
         metavar="TRIAL=PATH",
         help="repeat for independently trained RegDB trial checkpoints",
+    )
+    parser.add_argument(
+        "--allow-partial-regdb",
+        action="store_true",
+        help="allow a clearly labelled non-benchmark average over fewer than trials 1-10",
     )
     args = parser.parse_args(argv)
     config = resolved_config(args)
@@ -83,6 +114,8 @@ def main(argv=None):
             parser.error("--checkpoint is required for SYSU evaluation")
         if regdb_checkpoints:
             parser.error("--regdb-checkpoint is only valid for RegDB")
+        if args.allow_partial_regdb:
+            parser.error("--allow-partial-regdb is only valid for RegDB checkpoint mappings")
         shared_model = _loaded_model(config, args.checkpoint, args.num_classes, device)
         work = [
             (trial, config, args.checkpoint)
@@ -94,14 +127,29 @@ def main(argv=None):
         if not args.checkpoint and not regdb_checkpoints:
             parser.error("RegDB evaluation requires --checkpoint or --regdb-checkpoint TRIAL=PATH")
         if regdb_checkpoints:
+            expected_trials = set(range(1, 11))
+            provided_trials = set(regdb_checkpoints)
+            if provided_trials != expected_trials and not args.allow_partial_regdb:
+                parser.error(
+                    "RegDB benchmark mode requires checkpoint mappings for every trial 1-10; "
+                    "use --allow-partial-regdb for exploratory partial results"
+                )
+            try:
+                _validate_regdb_checkpoint_files(regdb_checkpoints)
+            except ValueError as exc:
+                parser.error(str(exc))
             work = []
             for trial, checkpoint in sorted(regdb_checkpoints.items()):
                 trial_config = copy.deepcopy(config)
                 trial_config["dataset"]["regdb_trial"] = trial
                 work.append((trial, trial_config, checkpoint))
         else:
+            if args.allow_partial_regdb:
+                parser.error("--allow-partial-regdb requires --regdb-checkpoint mappings")
             trial = int(config["dataset"]["regdb_trial"])
             work = [(trial, config, args.checkpoint)]
+    mode = _evaluation_mode(config)
+    print("evaluation_mode=%s" % mode, flush=True)
     results = []
     for trial, trial_config, checkpoint in work:
         model = (
@@ -111,14 +159,28 @@ def main(argv=None):
         )
         result = _one_trial(trial_config, model, device, trial)
         results.append(result)
-        print("trial=%d Rank-1=%.6f mAP=%.6f mINP=%.6f" % (trial, result["cmc"][0], result["mAP"], result["mINP"]), flush=True)
+        print(
+            "mode=%s trial=%d Rank-1=%.6f mAP=%.6f mINP=%.6f"
+            % (mode, trial, result["cmc"][0], result["mAP"], result["mINP"]),
+            flush=True,
+        )
         if trial_config["dataset"]["name"] == "regdb":
             del model
             if device.type == "cuda":
                 torch.cuda.empty_cache()
+    if config["dataset"]["name"] == "sysu":
+        summary = "gallery-trial average"
+    elif regdb_checkpoints and set(regdb_checkpoints) == set(range(1, 11)):
+        summary = "10-trial average"
+    elif regdb_checkpoints:
+        summary = "partial average over %d trials" % len(regdb_checkpoints)
+    else:
+        summary = "single-trial result"
     print(
-        "average Rank-1=%.6f mAP=%.6f mINP=%.6f"
+        "%s mode=%s Rank-1=%.6f mAP=%.6f mINP=%.6f"
         % (
+            summary,
+            mode,
             np.mean([item["cmc"][0] for item in results]),
             np.mean([item["mAP"] for item in results]),
             np.mean([item["mINP"] for item in results]),

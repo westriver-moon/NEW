@@ -36,7 +36,7 @@ DEFAULTS: Dict[str, Any] = {
         "text_vocab_size": 49408,
         "text_length": 77,
         "fusion_weight": 0.5,
-        "freeze_vision": True,
+        "freeze_vision": False,
         "vision_pretrained": None,
         "text_pretrained": None,
         "tokenizer": {
@@ -74,6 +74,7 @@ DEFAULTS: Dict[str, Any] = {
         },
     },
     "stage_a": {
+        "lr_vision": 3.0e-4,
         "epochs": 24,
         "gray_epochs": 6,
         "transition_epochs": 4,
@@ -92,7 +93,7 @@ DEFAULTS: Dict[str, Any] = {
         "num_workers": 8,
         "optimizer": "adamw",
         "lr_text": 1.0e-5,
-        "lr_vision": 3.0e-4,
+        "lr_vision": 3.0e-5,
         "lr_other": 1.0e-5,
         "weight_decay": 1.0e-4,
         "warmup_epochs": 3,
@@ -230,6 +231,8 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ConfigError("gallery_mode must be single or multi")
     if int(config["evaluation"]["gallery_trials"]) < 1:
         raise ConfigError("gallery_trials must be positive")
+    if int(config["model"]["text_length"]) < 2:
+        raise ConfigError("model.text_length must be at least 2 for <start> and <end> tokens")
     minimum_coverage = float(config["dataset"].get("min_vocab_coverage", 0.5))
     if not 0.0 <= minimum_coverage <= 1.0:
         raise ConfigError("dataset.min_vocab_coverage must be in [0, 1]")
@@ -237,6 +240,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ConfigError("batch_size must be divisible by instances_per_identity")
     stage = config.get("stage_a", {})
     required_stage_keys = {
+        "lr_vision",
         "epochs",
         "gray_epochs",
         "transition_epochs",

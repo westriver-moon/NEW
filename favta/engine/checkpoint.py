@@ -107,16 +107,15 @@ def validate_checkpoint_provenance(
     for section in ("visual_enhancement", "loss"):
         if provenance.get(section) != config[section]:
             raise ValueError("checkpoint %s configuration does not match: %s" % (section, checkpoint))
-    for name, configured_path in (
-        ("caption_index", expected_dataset.get("caption_index")),
-        ("vocab", expected_dataset.get("vocab_path")),
-    ):
-        if not configured_path:
-            continue
-        stored_asset = provenance.get("assets", {}).get(name)
-        current_hash = sha256_file(configured_path)
+    # Training commonly uses RGB captions while text-fusion evaluation uses a
+    # separate IR caption index, so both are preflighted but need not be the
+    # same file. The vocabulary does define token IDs and must remain identical.
+    configured_vocab = expected_dataset.get("vocab_path")
+    if configured_vocab:
+        stored_asset = provenance.get("assets", {}).get("vocab")
+        current_hash = sha256_file(configured_vocab)
         if not isinstance(stored_asset, Mapping) or stored_asset.get("sha256") != current_hash:
-            raise ValueError("checkpoint %s fingerprint does not match: %s" % (name, checkpoint))
+            raise ValueError("checkpoint vocab fingerprint does not match: %s" % checkpoint)
 
 
 def _rng_state() -> Dict[str, Any]:

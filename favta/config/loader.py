@@ -51,7 +51,9 @@ DEFAULTS: Dict[str, Any] = {
         "plugin": "qwen_paraphrases",
         "index": None,
         "probability": 1.0,
+        "strategy": "balanced_cycle",
         "strict": True,
+        "validate_source_caption": True,
         "paraphrases_per_caption": 4,
         "strip_prefixes": ["datasets/sysu", "datasets/regdb"],
     },
@@ -224,5 +226,7 @@ def validate_config(config: Mapping[str, Any]) -> None:
         probability = float(text_augmentation.get("probability", 1.0))
         if not 0.0 <= probability <= 1.0:
             raise ConfigError("text_augmentation.probability must be in [0, 1]")
-        if int(text_augmentation.get("paraphrases_per_caption", 4)) < 1:
-            raise ConfigError("text_augmentation.paraphrases_per_caption must be positive")
+        if int(text_augmentation.get("paraphrases_per_caption", 4)) != 4:
+            raise ConfigError("text_augmentation.paraphrases_per_caption must be exactly 4")
+        if text_augmentation.get("strategy", "balanced_cycle") not in {"balanced_cycle", "iid_uniform"}:
+            raise ConfigError("text_augmentation.strategy must be balanced_cycle or iid_uniform")

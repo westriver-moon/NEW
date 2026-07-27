@@ -52,11 +52,11 @@ class CrossModalDataset(Dataset):
                 self.records.append((rgb_items[offset % len(rgb_items)], ir_items[offset % len(ir_items)], pid))
                 self.pid_to_indices[pid].append(index)
         if self.caption_augmentation is not None:
-            relative_paths = {
-                record.relative_path or Path(record.path.name)
-                for record in rgb_records
-            }
-            self.caption_augmentation.validate_keys(relative_paths)
+            caption_pairs = {}
+            for record in rgb_records:
+                relative = record.relative_path or Path(record.path.name)
+                caption_pairs[relative] = self.caption_index.caption_for(relative)
+            self.caption_augmentation.validate_captions(caption_pairs.items())
 
     @property
     def num_classes(self) -> int:

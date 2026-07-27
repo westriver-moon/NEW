@@ -32,8 +32,9 @@ Explicit CLI values override YAML values. Runtime outputs belong outside the rep
 The core data path uses original captions unless a caption plugin is explicitly
 enabled. The bundled `qwen_paraphrases` plugin consumes an external JSON index
 whose values contain exactly four unique `paraphrases`. It validates complete
-RGB training coverage before the first batch and samples only during training;
-evaluation continues to use the original caption.
+RGB training coverage and source-caption alignment before the first batch. The
+plugin is attached only to the RGB training caption branch; IR data and all
+evaluation captions remain original.
 
 Generate the external index with the local AWQ checkpoint:
 
@@ -60,7 +61,7 @@ favta-qwen-caption-merge \
   --output /path/to/unified-dataset/Text/Blip_RGB_Qwen3_14B_AWQ/caption_qwen3_14b_awq_4x.json
 ```
 
-Enable uniform training-time selection with command-line overrides:
+Enable the training-validated four-caption schedule with command-line overrides:
 
 ```bash
 python -m favta.cli.train --config configs/sysu/full.yaml \
@@ -69,13 +70,17 @@ python -m favta.cli.train --config configs/sysu/full.yaml \
   --caption-augmentation-index /home/cgv841/datasets/SYSU-MM01/Text/Blip_RGB_Qwen3_14B_AWQ/caption_qwen3_14b_awq_4x.json \
   --set text_augmentation.enabled=true \
   --set text_augmentation.plugin=qwen_paraphrases \
-  --set text_augmentation.probability=1.0
+  --set text_augmentation.probability=1.0 \
+  --set text_augmentation.strategy=balanced_cycle
 ```
 
-With `probability=1.0` and four paraphrases, each one is selected with
-probability `1/4`. More generally, each enhanced caption has probability
-`probability / 4`, while the original caption has probability
+`balanced_cycle` gives every sample a stable random starting caption and
+direction. With `probability=1.0`, each sample therefore sees all four Qwen
+paraphrases exactly once in every four consecutive epochs, while the marginal
+choice in each epoch remains `1/4`. `iid_uniform` is also available for
+independent deterministic draws. More generally, each enhanced caption has
+probability `probability / 4`, while the original caption has probability
 `1 - probability`. A custom plugin can be supplied as `module:object` or via
 the `favta.caption_augmentation` Python entry-point group. Selection is a
-stable hash of seed, epoch, sample index, and image path, so resumed runs make
-the same choice for the same training sample.
+stable hash of seed, epoch, sample index, and RGB image path, so resumed runs
+make the same choice for the same training sample.

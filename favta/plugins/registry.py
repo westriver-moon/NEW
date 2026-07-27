@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from importlib import import_module
 from importlib.metadata import entry_points
-from typing import Any, Iterable, Mapping, Optional
+from typing import Any, Iterable, Mapping, Optional, Tuple
 
 
 ENTRY_POINT_GROUP = "favta.caption_augmentation"
@@ -18,6 +18,9 @@ class CaptionAugmentationPlugin(ABC):
 
     def validate_keys(self, keys: Iterable[Any]) -> None:
         return None
+
+    def validate_captions(self, items: Iterable[Tuple[Any, str]]) -> None:
+        self.validate_keys(key for key, _ in items)
 
     @abstractmethod
     def select_caption(self, key: Any, original: str, sample_index: Optional[int] = None) -> str:

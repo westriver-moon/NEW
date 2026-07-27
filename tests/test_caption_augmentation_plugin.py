@@ -4,10 +4,17 @@ from pathlib import Path
 import pytest
 
 from favta.config import ConfigError, load_config
-from favta.data.text import CaptionIndex
+from favta.data.text import CaptionIndex, CaptionTokenizer
 from favta.plugins import build_caption_augmentation_plugin
 from favta.plugins.qwen_caption import QwenParaphrasePlugin
-from favta.plugins.qwen_caption.generate import load_input, normalize_paraphrases
+from favta.plugins.qwen_caption import merge
+from favta.plugins.qwen_caption.generate import (
+    load_input,
+    normalize_paraphrases,
+    sha256_file,
+    validate_completed_sources,
+    validate_resume_manifest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -161,3 +168,87 @@ def test_generator_accepts_flat_caption_index_and_validates_four_unique_outputs(
     assert load_input(path)["cam4/0001/frame.jpg"]["description"] == "A person in red."
     output = '{"paraphrases":["one","two","three","four"]}'
     assert normalize_paraphrases(output, 2) == ["one", "two", "three", "four"]
+
+
+def test_tokenizer_normalizes_vocab_case_and_reports_coverage(tmp_path):
+    vocab = tmp_path / "vocab.txt"
+    vocab.write_text("Person\nRED\ncoat\n", encoding="utf-8")
+    tokenizer = CaptionTokenizer(str(vocab), length=8, vocab_size=32)
+    encoded = tokenizer("PERSON red missing")
+    assert encoded.tolist()[:5] == [1, 4, 5, 3, 2]
+    assert tokenizer.coverage(["person RED", "coat missing"]) == 0.75
+
+
+def test_merge_normalizes_flat_input_and_uses_manifest_word_limit(monkeypatch, tmp_path):
+    source = tmp_path / "captions.json"
+    source.write_text(json.dumps({"a.jpg": "source caption"}), encoding="utf-8")
+    shard_dir = tmp_path / "shards"
+    shard_dir.mkdir()
+    shard = shard_dir / "caption_qwen3_14b_awq_4x.shard-000-of-001.json"
+    shard.write_text(
+        json.dumps(
+            {
+                "a.jpg": {
+                    "description": "source caption",
+                    "paraphrases": ["one two", "three four", "five six", "seven eight"],
+                }
+            }
+        ),
+        encoding="utf-8",
+    )
+    manifest = {
+        "complete": True,
+        "source_sha256": sha256_file(source),
+        "shard_id": 0,
+        "num_shards": 1,
+        "expected_for_shard": 1,
+        "generation": {"max_words": 2},
+    }
+    (shard_dir / "manifest.shard-000-of-001.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+    output = tmp_path / "merged.json"
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "merge",
+            "--input",
+            str(source),
+            "--shard-dir",
+            str(shard_dir),
+            "--output",
+            str(output),
+        ],
+    )
+    assert merge.main() == 0
+    assert json.loads(output.read_text(encoding="utf-8"))["a.jpg"]["description"] == "source caption"
+
+
+def test_resume_rejects_changed_generation_or_source_caption(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    expected = {
+        "schema_version": 1,
+        "model": "model",
+        "model_source": "source",
+        "revision": "revision",
+        "prompt_version": "prompt",
+        "source_sha256": "first",
+        "shard_id": 0,
+        "num_shards": 1,
+        "expected_total": 1,
+        "expected_for_shard": 1,
+        "seed": 7,
+        "limit": None,
+        "generation": {"temperature": 0.6},
+    }
+    manifest.write_text(json.dumps(expected), encoding="utf-8")
+    validate_resume_manifest(manifest, expected, journal_exists=True)
+    changed = dict(expected)
+    changed["source_sha256"] = "second"
+    with pytest.raises(ValueError, match="source_sha256"):
+        validate_resume_manifest(manifest, changed, journal_exists=True)
+    with pytest.raises(ValueError, match="source-caption mismatch"):
+        validate_completed_sources(
+            {"a.jpg": {"description": "old"}},
+            {"a.jpg": {"description": "new"}},
+        )

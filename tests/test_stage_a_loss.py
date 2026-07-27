@@ -11,6 +11,7 @@ from favta.losses import (
     cosine_transition,
 )
 from favta.models.visual_pretrain import build_visual_pretrain_model
+from favta.losses.stage_a import StageATransition, _batch_hard_triplet
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -144,6 +145,22 @@ def test_stage_a_is_the_only_visual_pretraining_objective_and_backpropagates():
     )
     assert "WeightedRegularizedTripletLoss" not in source
     assert "wrt" not in source.lower()
+
+
+def test_stage_a_intra_triplet_averages_the_two_modalities():
+    criterion = StageALoss(stage_config())
+    labels = torch.tensor([0, 0, 1, 1])
+    visible = torch.tensor([[0.0, 0.0], [0.2, 0.0], [1.0, 0.0], [1.2, 0.0]])
+    infrared = torch.tensor([[0.0, 0.0], [0.4, 0.0], [1.0, 0.0], [1.4, 0.0]])
+    logits = {"Visible": torch.randn(4, 2), "IR": torch.randn(4, 2)}
+    output = {"features": {"Visible": visible, "IR": infrared}, "logits": logits}
+    transition = StageATransition(0.0, torch.tensor(0.0))
+    losses = criterion(output, labels, transition)
+    expected = 0.5 * (
+        _batch_hard_triplet(visible, labels, criterion.triplet_margin)
+        + _batch_hard_triplet(infrared, labels, criterion.triplet_margin)
+    )
+    assert losses["intra_triplet_raw"] == pytest.approx(float(expected))
 
 
 @pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA is not available")

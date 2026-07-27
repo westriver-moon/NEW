@@ -251,6 +251,7 @@ class StageALoss(nn.Module):
                 intra_raw = intra_raw + _batch_hard_triplet(
                     metric_infrared, labels, self.triplet_margin
                 )
+                intra_raw = 0.5 * intra_raw
             if rho > 0.0:
                 cross_raw = _cross_modal_hard_triplet(
                     metric_visible, metric_infrared, labels, self.triplet_margin

@@ -18,7 +18,7 @@ import re
 import tempfile
 import time
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Mapping, Sequence, Tuple
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Tuple
 
 
 MODEL_ID = "Qwen/Qwen3-14B-AWQ"
@@ -182,8 +182,51 @@ def read_journal(path: Path) -> Tuple[Dict[str, Dict[str, Any]], int]:
     return completed, invalid
 
 
+RESUME_FIELDS = (
+    "schema_version",
+    "model",
+    "model_source",
+    "revision",
+    "prompt_version",
+    "source_sha256",
+    "shard_id",
+    "num_shards",
+    "expected_total",
+    "expected_for_shard",
+    "seed",
+    "limit",
+    "generation",
+)
+
+
+def validate_resume_manifest(path: Path, expected: Mapping[str, Any], journal_exists: bool) -> None:
+    if not path.is_file():
+        if journal_exists:
+            raise ValueError("cannot resume a journal without its manifest")
+        return
+    with path.open("r", encoding="utf-8") as handle:
+        actual = json.load(handle)
+    if not isinstance(actual, dict):
+        raise ValueError("resume manifest must be a JSON object")
+    mismatched = [field for field in RESUME_FIELDS if actual.get(field) != expected.get(field)]
+    if mismatched:
+        raise ValueError("resume manifest does not match current generation: %s" % ", ".join(mismatched))
+
+
+def validate_completed_sources(
+    completed: Mapping[str, Mapping[str, Any]], source: Mapping[str, Mapping[str, Any]]
+) -> None:
+    mismatched = [
+        key
+        for key, item in completed.items()
+        if item.get("description") != source[key].get("description")
+    ]
+    if mismatched:
+        raise ValueError("journal source-caption mismatch for %d keys" % len(mismatched))
+
+
 def selected_items(
-    entries: Mapping[str, Mapping[str, Any]], shard_id: int, num_shards: int, limit: int | None
+    entries: Mapping[str, Mapping[str, Any]], shard_id: int, num_shards: int, limit: Optional[int]
 ) -> List[Tuple[str, Mapping[str, Any]]]:
     selected = [item for index, item in enumerate(sorted(entries.items())) if index % num_shards == shard_id]
     return selected[:limit] if limit is not None else selected
@@ -303,9 +346,6 @@ def main() -> int:
     source = load_input(input_path)
     work = selected_items(source, args.shard_id, args.num_shards, args.limit)
     allowed_keys = {key for key, _ in work}
-    completed, invalid_journal_lines = read_journal(journal_path)
-    completed = {key: value for key, value in completed.items() if key in allowed_keys}
-    pending = [(key, value) for key, value in work if key not in completed]
     metadata = {
         "schema_version": 1,
         "model": args.model_id,
@@ -320,8 +360,10 @@ def main() -> int:
         "num_shards": args.num_shards,
         "expected_total": len(source),
         "expected_for_shard": len(work),
-        "invalid_journal_lines": invalid_journal_lines,
+        "seed": args.seed,
+        "limit": args.limit,
         "generation": {
+            "max_input_tokens": args.max_input_tokens,
             "temperature": args.temperature,
             "top_p": args.top_p,
             "top_k": args.top_k,
@@ -330,9 +372,17 @@ def main() -> int:
             "max_words": args.max_words,
         },
     }
+    validate_resume_manifest(manifest_path, metadata, journal_path.is_file())
+    completed, invalid_journal_lines = read_journal(journal_path)
+    completed = {key: value for key, value in completed.items() if key in allowed_keys}
+    validate_completed_sources(completed, source)
+    pending = [(key, value) for key, value in work if key not in completed]
+    metadata["invalid_journal_lines"] = invalid_journal_lines
     print(json.dumps({**metadata, "already_completed": len(completed), "pending": len(pending)}, indent=2))
     if args.dry_run:
         return 0
+    if not journal_path.exists():
+        materialize(output_path, manifest_path, source, completed, metadata)
     if not pending:
         materialize(output_path, manifest_path, source, completed, metadata)
         return 0

@@ -6,6 +6,7 @@ import torch
 from favta.config.loader import DEFAULTS, validate_config
 from favta.losses import FAVTALoss, FourViewBidirectionalHardTripletLoss
 from favta.models import build_model
+from favta.models.visual_pretrain import build_visual_pretrain_model
 
 
 def tiny_config(variant="full"):
@@ -46,6 +47,35 @@ def test_baseline_and_visual_tokenizer_cardinality():
     visual = build_model(tiny_config("visual"), 2)
     assert baseline.vision.tokenizer.branch_count == 1
     assert visual.vision.tokenizer.branch_count == 2
+
+
+def test_visual_pretraining_checkpoint_must_match_stage_b_architecture():
+    baseline = tiny_config("baseline")
+    full = tiny_config("full")
+    full["model"]["image_size"] = [64, 32]
+    pretrained = build_visual_pretrain_model(baseline, 2)
+    model = build_model(full, 2)
+    with pytest.raises(RuntimeError) as caught:
+        model.vision.load_state_dict(pretrained.vision.state_dict(), strict=True)
+    assert "tokenizer.projections.1.weight" in str(caught.value)
+    assert "size mismatch for position" in str(caught.value)
+
+
+def test_frozen_vision_remains_deterministic_when_parent_enters_train_mode():
+    config = tiny_config("full")
+    config["model"]["dropout"] = 0.5
+    config["model"]["drop_path"] = 0.5
+    config["model"]["freeze_vision"] = True
+    model = build_model(config, 2)
+    model.train()
+    assert model.training
+    assert not model.vision.training
+    assert not any(module.training for module in model.vision.modules())
+    image = torch.randn(4, 3, 32, 16)
+    with torch.no_grad():
+        first = model.encode_image(image)
+        second = model.encode_image(image)
+    assert torch.equal(first, second)
 
 
 def test_full_model_has_four_views_twelve_directional_losses_and_gradients():

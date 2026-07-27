@@ -35,15 +35,40 @@ Each variant is available under `configs/sysu` and `configs/regdb`.
 ## Commands
 
 ```bash
-python -m favta.cli.pretrain_visual --config configs/sysu/baseline.yaml --data-root /path/to/sysu --output-dir /path/to/output
 python -m favta.cli.prepare_sr --config configs/sysu/full.yaml --data-root /path/to/sysu --sr-root /path/to/sysu-sr --sr-model /path/to/model.ts --output-root /path/to/sysu-sr
+python -m favta.cli.pretrain_visual --config configs/sysu/full.yaml --data-root /path/to/sysu --sr-root /path/to/sysu-sr --output-dir /path/to/output
 python -m favta.cli.train --config configs/sysu/full.yaml --data-root /path/to/sysu --sr-root /path/to/sysu-sr --caption-index /path/to/captions.json --vocab-path /path/to/vocab.txt --output-dir /path/to/output --set model.vision_pretrained=/path/to/visual_encoder.pth
-python -m favta.cli.evaluate --config configs/sysu/full.yaml --checkpoint /path/to/output/last.pth --data-root /path/to/sysu --sr-root /path/to/sysu-sr --caption-index /path/to/captions.json --vocab-path /path/to/vocab.txt
+python -m favta.cli.evaluate --config configs/sysu/full.yaml --checkpoint /path/to/output/last.pth --data-root /path/to/sysu --sr-root /path/to/sysu-sr
 ```
 
 The Stage A command always uses the objective above. Its schedule and weights
 are configured under `stage_a`; there is no switch back to the superseded
-visual-pretraining loss.
+visual-pretraining loss. Stage A and Stage B must use the same variant config:
+`baseline` and `favta` use the one-branch 288x144 encoder, while `visual` and
+`full` use the two-branch 512x256 encoder. Visual checkpoints are loaded
+strictly; checkpoints are not adapted across these architectures.
+
+Evaluation is image-only by default. To evaluate IR/Text fusion, explicitly add
+`--set evaluation.use_text_fusion=true` together with `--caption-index` and
+`--vocab-path`. The evaluation caption index must cover every IR/thermal test
+image; an RGB-only caption file is intentionally rejected during evaluation
+preflight. Four-view training always requires a vocabulary and rejects caption
+sets whose known-token coverage is below `dataset.min_vocab_coverage`.
+
+RegDB benchmark averaging requires an independently trained checkpoint for
+each split. Supply mappings instead of testing one checkpoint on several
+splits:
+
+```bash
+python -m favta.cli.evaluate --config configs/regdb/full.yaml \
+  --data-root /path/to/regdb --sr-root /path/to/regdb-sr \
+  --regdb-checkpoint 1=/path/to/trial-1.pth \
+  --regdb-checkpoint 2=/path/to/trial-2.pth
+```
+
+SYSU single-shot and multi-shot gallery construction follows the official
+one/ten-images-per-identity-per-RGB-camera protocol and averages the configured
+number of gallery trials.
 
 Explicit CLI values override YAML values. Runtime outputs belong outside the repository or under an ignored directory.
 

@@ -36,9 +36,16 @@ class CaptionTokenizer:
         if vocab_path:
             with Path(vocab_path).open("r", encoding="utf-8") as handle:
                 for line in handle:
-                    token = line.rstrip("\n")
+                    token = line.strip().lower()
                     if token and token not in self.vocab and len(self.vocab) < self.vocab_size:
                         self.vocab[token] = len(self.vocab)
+
+    def coverage(self, captions) -> float:
+        tokens = [token.lower() for caption in captions for token in caption.split()]
+        if not tokens:
+            return 1.0
+        known = sum(token in self.vocab for token in tokens)
+        return float(known) / float(len(tokens))
 
     def __call__(self, caption: str) -> torch.Tensor:
         ids = [self.vocab["<start>"]]

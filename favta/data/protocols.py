@@ -59,7 +59,10 @@ def discover_sysu_gallery(root: str, protocol: str, trial: int, mode: str = "sin
         for pid in test_ids:
             directory = base / ("cam%d" % camera) / ("%04d" % pid)
             candidates = _images(directory) if directory.is_dir() else []
-            selected = candidates if mode == "multi" else ([rng.choice(candidates)] if candidates else [])
+            if mode == "multi":
+                selected = rng.sample(candidates, min(10, len(candidates)))
+            else:
+                selected = [rng.choice(candidates)] if candidates else []
             for path in selected:
                 records.append(ImageRecord(path, pid, camera, "rgb", path.relative_to(base)))
     return records

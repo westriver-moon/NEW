@@ -27,8 +27,10 @@ def test_optimizer_groups_and_cosine_is_monotonic_after_warmup():
     named = {group["group_name"]: group["lr"] for group in optimizer.param_groups}
     assert named == {"vision": 1e-4, "text": 2e-4, "other": 3e-4}
     scheduler = WarmupCosineScheduler(optimizer, epochs=10, warmup_epochs=2, warmup_factor=0.1, min_lr_factor=0.01)
-    values = [scheduler.factor_at(epoch) for epoch in range(2, 11)]
+    values = [scheduler.factor_at(epoch) for epoch in range(2, 10)]
     assert all(left >= right for left, right in zip(values, values[1:]))
+    assert values[0] == 1.0
+    assert values[-1] == 0.01
 
 
 def test_checkpoint_strictly_restores_all_training_state(tmp_path):

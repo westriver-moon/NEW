@@ -21,6 +21,7 @@ DEFAULTS: Dict[str, Any] = {
         "sr_root": None,
         "caption_index": None,
         "vocab_path": None,
+        "min_vocab_coverage": 0.5,
         "regdb_trial": 1,
         "regdb_direction": "visible_to_thermal",
     },
@@ -106,6 +107,7 @@ DEFAULTS: Dict[str, Any] = {
         "protocol": "all",
         "gallery_trials": 10,
         "gallery_mode": "single",
+        "use_text_fusion": False,
         "batch_size": 64,
         "num_workers": 4,
     },
@@ -228,6 +230,9 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ConfigError("gallery_mode must be single or multi")
     if int(config["evaluation"]["gallery_trials"]) < 1:
         raise ConfigError("gallery_trials must be positive")
+    minimum_coverage = float(config["dataset"].get("min_vocab_coverage", 0.5))
+    if not 0.0 <= minimum_coverage <= 1.0:
+        raise ConfigError("dataset.min_vocab_coverage must be in [0, 1]")
     if int(config["train"]["batch_size"]) % int(config["train"]["instances_per_identity"]):
         raise ConfigError("batch_size must be divisible by instances_per_identity")
     stage = config.get("stage_a", {})

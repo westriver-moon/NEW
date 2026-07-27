@@ -47,10 +47,19 @@ class FAVTANetwork(nn.Module):
         self.text = text
         self.fusion = fusion
         self.classifier = classifier
+        self.vision_frozen = False
 
     def freeze_vision(self, frozen: bool = True) -> None:
+        self.vision_frozen = bool(frozen)
         for parameter in self.vision.parameters():
-            parameter.requires_grad_(not frozen)
+            parameter.requires_grad_(not self.vision_frozen)
+        self.vision.train(self.training and not self.vision_frozen)
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        if self.vision_frozen:
+            self.vision.eval()
+        return self
 
     def encode_image(self, image: torch.Tensor) -> torch.Tensor:
         return F.normalize(self.vision(image), dim=1)

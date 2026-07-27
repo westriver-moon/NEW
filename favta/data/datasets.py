@@ -201,7 +201,7 @@ class EvaluationImageDataset(Dataset):
             "modality": record.modality,
             "path": str(path),
         }
-        if self.caption_index is not None and self.tokenizer is not None:
+        if self.caption_index is not None and self.tokenizer is not None and record.modality == "ir":
             relative = record.relative_path or Path(record.path.name)
             item["text"] = self.tokenizer(self.caption_index.caption_for(relative))
         return item

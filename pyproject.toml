@@ -6,12 +6,12 @@ build-backend = "setuptools.build_meta"
 name = "favta"
 version = "0.1.0"
 description = "Four-view bidirectional hard-triplet alignment for visible-infrared person re-identification"
-requires-python = ">=3.8"
+requires-python = ">=3.9"
 dependencies = [
   "numpy>=1.19",
   "Pillow>=8",
   "PyYAML>=5.4",
-  "torch>=1.8",
+  "torch>=1.9",
   "torchvision>=0.9",
 ]
 

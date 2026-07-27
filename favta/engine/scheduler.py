@@ -17,8 +17,17 @@ class WarmupCosineScheduler:
         if self.warmup_epochs > 0 and epoch < self.warmup_epochs:
             progress = float(epoch + 1) / float(self.warmup_epochs)
             return self.warmup_factor + (1.0 - self.warmup_factor) * progress
-        remaining = max(1, self.epochs - self.warmup_epochs)
-        progress = min(1.0, max(0.0, float(epoch - self.warmup_epochs) / float(remaining)))
+        cosine_epochs = max(1, self.epochs - self.warmup_epochs)
+        if cosine_epochs == 1:
+            progress = 1.0
+        else:
+            progress = min(
+                1.0,
+                max(
+                    0.0,
+                    float(epoch - self.warmup_epochs) / float(cosine_epochs - 1),
+                ),
+            )
         cosine = 0.5 * (1.0 + math.cos(math.pi * progress))
         return self.min_lr_factor + (1.0 - self.min_lr_factor) * cosine
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import math
 import os
 from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping, MutableMapping, Optional
@@ -70,6 +71,18 @@ DEFAULTS: Dict[str, Any] = {
             "IR-Text": 1.0,
             "Fusion-Text": 1.0,
         },
+    },
+    "stage_a": {
+        "epochs": 24,
+        "gray_epochs": 6,
+        "transition_epochs": 4,
+        "id_weight": 1.0,
+        "triplet_margin": 0.1,
+        "cross_modal_triplet_weight": 1.0,
+        "msel_weight": 0.5,
+        "msct_margin": 0.1,
+        "msct_weight": 0.25,
+        "amp_init_scale": 2048.0,
     },
     "train": {
         "epochs": 33,
@@ -217,6 +230,38 @@ def validate_config(config: Mapping[str, Any]) -> None:
         raise ConfigError("gallery_trials must be positive")
     if int(config["train"]["batch_size"]) % int(config["train"]["instances_per_identity"]):
         raise ConfigError("batch_size must be divisible by instances_per_identity")
+    stage = config.get("stage_a", {})
+    required_stage_keys = {
+        "epochs",
+        "gray_epochs",
+        "transition_epochs",
+        "id_weight",
+        "triplet_margin",
+        "cross_modal_triplet_weight",
+        "msel_weight",
+        "msct_margin",
+        "msct_weight",
+        "amp_init_scale",
+    }
+    if set(stage) != required_stage_keys:
+        raise ConfigError("stage_a must contain exactly the supported loss schedule fields")
+    for name in ("epochs", "gray_epochs", "transition_epochs"):
+        if type(stage[name]) is not int:
+            raise ConfigError("stage_a.%s must be an integer" % name)
+    if stage["epochs"] <= 0 or stage["gray_epochs"] < 0 or stage["transition_epochs"] <= 0:
+        raise ConfigError("Stage A epoch counts are invalid")
+    if stage["epochs"] < stage["gray_epochs"] + stage["transition_epochs"]:
+        raise ConfigError("Stage A epochs must cover the Gray and transition phases")
+    for name in required_stage_keys - {"epochs", "gray_epochs", "transition_epochs"}:
+        value = stage[name]
+        if type(value) not in {int, float} or not math.isfinite(float(value)) or float(value) < 0.0:
+            raise ConfigError("stage_a.%s must be a finite non-negative number" % name)
+    if float(stage["amp_init_scale"]) <= 0.0:
+        raise ConfigError("stage_a.amp_init_scale must be positive")
+    instances = int(config["train"]["instances_per_identity"])
+    identities = int(config["train"]["batch_size"]) // instances
+    if instances < 2 or identities < 2:
+        raise ConfigError("Stage A requires at least two samples and two identities per batch")
     text_augmentation = config.get("text_augmentation", {})
     if text_augmentation.get("enabled"):
         if not isinstance(text_augmentation.get("plugin"), str) or not text_augmentation["plugin"].strip():

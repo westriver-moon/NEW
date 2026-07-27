@@ -7,6 +7,22 @@ FAVTA is a clean research implementation for visible-infrared person re-identifi
 
 The repository supports SYSU-MM01 and RegDB. Datasets, generated super-resolution images, tokenizer vocabularies, pretrained parameters, checkpoints, and run outputs are external assets and are never stored in this repository.
 
+## Stage A visual training
+
+Stage A uses one fixed objective, with no legacy-loss selector. Epochs 0--5 use
+Gray--IR inputs and identity plus modality-internal batch-hard triplet learning.
+Epochs 6--9 use one iteration-level cosine coefficient to increase both the
+identity-level RGB sampling probability and the cross-modal loss weight. Epoch
+10 onward uses RGB--IR with identity classification, bidirectional cross-modal
+batch-hard triplet, mean sample alignment, and modality-separated center
+triplet losses. The default Stage A budget is 24 epochs.
+
+RGB and Gray tensors are independently transformed and never blended. During
+the transition, all visible samples of one identity choose the same input type.
+The choice is deterministic from the experiment seed, epoch, iteration, and
+identity slot, so an epoch-boundary resume reproduces it exactly.
+Stage A AMP starts with a conservative scale of 2048 by default.
+
 ## Variants
 
 - `baseline`: original images, one overlapping tokenizer, ID + WRT losses.
@@ -24,6 +40,10 @@ python -m favta.cli.prepare_sr --config configs/sysu/full.yaml --data-root /path
 python -m favta.cli.train --config configs/sysu/full.yaml --data-root /path/to/sysu --sr-root /path/to/sysu-sr --caption-index /path/to/captions.json --vocab-path /path/to/vocab.txt --output-dir /path/to/output --set model.vision_pretrained=/path/to/visual_encoder.pth
 python -m favta.cli.evaluate --config configs/sysu/full.yaml --checkpoint /path/to/output/last.pth --data-root /path/to/sysu --sr-root /path/to/sysu-sr --caption-index /path/to/captions.json --vocab-path /path/to/vocab.txt
 ```
+
+The Stage A command always uses the objective above. Its schedule and weights
+are configured under `stage_a`; there is no switch back to the superseded
+visual-pretraining loss.
 
 Explicit CLI values override YAML values. Runtime outputs belong outside the repository or under an ignored directory.
 

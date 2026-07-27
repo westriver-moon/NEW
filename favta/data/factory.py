@@ -59,7 +59,22 @@ def build_visual_training_set(config: Dict[str, Any]) -> VisualPairDataset:
     return VisualPairDataset(
         rgb,
         ir,
-        ImageTransform(config["model"]["image_size"], training=True, require_input_size=require_sr_size),
+        ImageTransform(
+            config["model"]["image_size"],
+            training=True,
+            require_input_size=require_sr_size,
+        ),
+        ImageTransform(
+            config["model"]["image_size"],
+            training=True,
+            require_input_size=require_sr_size,
+            grayscale=True,
+        ),
+        ImageTransform(
+            config["model"]["image_size"],
+            training=True,
+            require_input_size=require_sr_size,
+        ),
         sr_root=dataset.get("sr_root"),
         use_sr=config["visual_enhancement"]["enabled"],
     )

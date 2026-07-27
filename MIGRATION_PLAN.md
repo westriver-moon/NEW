@@ -12,7 +12,8 @@ Build a fresh, independent FAVTA repository from behavior-level requirements. Th
 - A one-branch overlapping visual tokenizer for baseline experiments.
 - Dual-modality SR path selection and two-branch overlapping tokenization for visual enhancement.
 - RGB, IR, Text, and Fusion features with all six unordered pairs aligned in both directions.
-- Two-stage training: visual pretraining followed by a frozen-vision four-view stage.
+- Two-stage training: cosine Gray-to-RGB visual training with modality-separated
+  center alignment, followed by a frozen-vision four-view stage.
 - AMP, gradient clipping, warmup-cosine scheduling, and complete strict checkpoint resume.
 - An opt-in caption-augmentation plugin boundary; the Qwen plugin remains disabled unless explicitly configured.
 
@@ -29,7 +30,8 @@ Build a fresh, independent FAVTA repository from behavior-level requirements. Th
 
 1. Establish package structure, configuration precedence, hygiene rules, and eight ablation presets.
 2. Implement SYSU-MM01 and RegDB discovery, paired training data, balanced sampling, and protocol-correct evaluation.
-3. Implement the visual transformer, text transformer, fusion, classifiers, WRT, and four-view alignment.
+3. Implement the visual transformer, the fixed Stage A transition objective,
+   text transformer, fusion, classifiers, WRT, and four-view alignment.
 4. Implement visual pretraining, four-view training, evaluation, SR preparation, optimizer grouping, scheduler, and checkpoint lifecycle.
 5. Verify all presets, protocol fixtures, gradients, CPU smoke tests, one CUDA AMP update, forbidden-name scanning, and repository artifact hygiene.
 

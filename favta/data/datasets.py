@@ -94,10 +94,21 @@ class CrossModalDataset(Dataset):
 
 
 class VisualPairDataset(Dataset):
-    def __init__(self, rgb_records, ir_records, transform, sr_root=None, use_sr=False):
+    def __init__(
+        self,
+        rgb_records,
+        ir_records,
+        rgb_transform,
+        gray_transform,
+        ir_transform,
+        sr_root=None,
+        use_sr=False,
+    ):
         from collections import defaultdict
 
-        self.transform = transform
+        self.rgb_transform = rgb_transform
+        self.gray_transform = gray_transform
+        self.ir_transform = ir_transform
         self.sr_root = Path(sr_root) if sr_root else None
         self.use_sr = bool(use_sr)
         grouped_rgb = defaultdict(list)
@@ -140,10 +151,16 @@ class VisualPairDataset(Dataset):
     def __getitem__(self, index):
         rgb_record, ir_record, pid = self.records[index]
         with Image.open(self._path(rgb_record)) as image:
-            rgb = self.transform(image)
+            rgb = self.rgb_transform(image)
+            gray = self.gray_transform(image)
         with Image.open(self._path(ir_record)) as image:
-            ir = self.transform(image)
-        return {"rgb": rgb, "ir": ir, "pid": torch.tensor(pid, dtype=torch.long)}
+            ir = self.ir_transform(image)
+        return {
+            "rgb": rgb,
+            "gray": gray,
+            "ir": ir,
+            "pid": torch.tensor(pid, dtype=torch.long),
+        }
 
 
 class EvaluationImageDataset(Dataset):

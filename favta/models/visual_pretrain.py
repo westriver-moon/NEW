@@ -17,12 +17,15 @@ class VisualPretrainNetwork(nn.Module):
     def encode_image(self, image):
         return F.normalize(self.vision(image), dim=1)
 
-    def forward(self, rgb, ir):
-        rgb_feature = self.encode_image(rgb)
+    def forward(self, visible, ir):
+        visible_feature = self.encode_image(visible)
         ir_feature = self.encode_image(ir)
         return {
-            "features": {"RGB": rgb_feature, "IR": ir_feature},
-            "logits": {"RGB": self.classifier(rgb_feature), "IR": self.classifier(ir_feature)},
+            "features": {"Visible": visible_feature, "IR": ir_feature},
+            "logits": {
+                "Visible": self.classifier(visible_feature),
+                "IR": self.classifier(ir_feature),
+            },
         }
 
 

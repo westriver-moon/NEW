@@ -26,6 +26,18 @@ def test_eight_configs_map_exactly(monkeypatch, tmp_path, dataset, variant, enha
     assert config["loss"]["favta_enabled"] is aligned
     assert len(config["model"]["tokenizer"]["branches"]) == branches
     assert config["loss"]["favta_weight"] == weight
+    assert config["stage_a"] == {
+        "epochs": 24,
+        "gray_epochs": 6,
+        "transition_epochs": 4,
+        "id_weight": 1.0,
+        "triplet_margin": 0.1,
+        "cross_modal_triplet_weight": 1.0,
+        "msel_weight": 0.5,
+        "msct_margin": 0.1,
+        "msct_weight": 0.25,
+        "amp_init_scale": 2048.0,
+    }
 
 
 def test_precedence_is_default_then_yaml_then_set_then_explicit(monkeypatch, tmp_path):
@@ -54,3 +66,11 @@ def test_unresolved_environment_path_is_rejected(monkeypatch):
     monkeypatch.delenv("FAVTA_SR_ROOT", raising=False)
     with pytest.raises(ConfigError):
         load_config(str(ROOT / "configs" / "sysu" / "visual.yaml"))
+
+
+def test_stage_a_rejects_legacy_or_unknown_loss_fields():
+    with pytest.raises(ConfigError, match="stage_a must contain exactly"):
+        load_config(
+            str(ROOT / "configs" / "sysu" / "baseline.yaml"),
+            ["stage_a.old_center_weight=0.5"],
+        )
